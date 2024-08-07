@@ -1,5 +1,5 @@
 import React from "react";
-import CharacterCanvas from "./Character";
+import CharacterCanvas from "./components/CharacterCanvas";
 
 function App() {
   return (
