@@ -1,13 +1,19 @@
 import React, { useRef, useEffect, useState } from "react";
 import fanmeetingImg from "../assets/bg.png";
-import hanaL from "../assets/hana-left.png";
-import hanaR from "../assets/hana-right.png";
 
 const socket = new WebSocket("ws://localhost:8080");
 
 const CharacterCanvas = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [characterSrc, setCharacterSrc] = useState<string>(hanaL);
+
+  const [characterSrc, setCharacterSrc] = useState<{
+    left: string;
+    right: string;
+  } | null>(null);
+  const [currentCharacterSrc, setCurrentCharacterSrc] = useState<string | null>(
+    null
+  );
+
   const [position, setPosition] = useState({
     x: 50,
     y: (window.innerHeight * 2) / 3,
@@ -18,46 +24,61 @@ const CharacterCanvas = () => {
     const ctx = canvas?.getContext("2d");
 
     const bgImg = new Image();
-    const charImgL = new Image();
-    const charImgR = new Image();
-
     bgImg.src = fanmeetingImg;
-    charImgL.src = hanaL;
-    charImgR.src = hanaR;
 
     const drawCanvas = () => {
       if (ctx && canvas) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
-        if (characterSrc === hanaL) {
-          ctx.drawImage(charImgL, position.x, position.y, 50, 50);
-        } else {
-          ctx.drawImage(charImgR, position.x, position.y, 50, 50);
+
+        if (currentCharacterSrc) {
+          const charImg = new Image();
+          charImg.src = currentCharacterSrc;
+          charImg.onload = () => {
+            ctx.drawImage(charImg, position.x, position.y, 50, 50);
+          };
+          charImg.onerror = () => {
+            console.error(
+              `Failed to load character image from ${currentCharacterSrc}`
+            );
+          };
         }
       }
     };
 
     bgImg.onload = drawCanvas;
-    charImgL.onload = drawCanvas;
-    charImgR.onload = drawCanvas;
-  }, [characterSrc, position]);
+    // 이미지가 변경되면 다시 그리기
+    if (currentCharacterSrc) {
+      const charImg = new Image();
+      charImg.src = currentCharacterSrc;
+      charImg.onload = drawCanvas;
+      charImg.onerror = () => {
+        console.error(
+          `Failed to load character image from ${currentCharacterSrc}`
+        );
+      };
+    } else {
+      drawCanvas();
+    }
+  }, [currentCharacterSrc, position]);
 
   useEffect(() => {
     socket.onmessage = (event) => {
-      // Blob을 문자열로 변환 후 JSON 파싱
-      const reader = new FileReader();
-      reader.onload = () => {
-        const data = JSON.parse(reader.result as string);
+      const data = JSON.parse(event.data);
+      if (data.type === "init") {
+        // 서버에서 받은 초기 캐릭터 정보 설정
         setCharacterSrc(data.characterSrc);
+        setCurrentCharacterSrc(data.characterSrc.left);
+      } else {
+        setCurrentCharacterSrc(data.characterSrc);
         setPosition(data.position);
-      };
-      reader.readAsText(event.data);
+      }
     };
   }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     let newPosition = { ...position };
-    let newCharacterSrc = characterSrc;
+    let newCharacterSrc = currentCharacterSrc;
 
     switch (e.key) {
       case "ArrowUp":
@@ -71,16 +92,16 @@ const CharacterCanvas = () => {
         break;
       case "ArrowLeft":
         newPosition.x = Math.max(newPosition.x - 10, 0);
-        newCharacterSrc = hanaL;
+        newCharacterSrc = characterSrc?.left || currentCharacterSrc;
         break;
       case "ArrowRight":
         newPosition.x = Math.min(newPosition.x + 10, window.innerWidth - 50);
-        newCharacterSrc = hanaR;
+        newCharacterSrc = characterSrc?.right || currentCharacterSrc;
         break;
     }
 
     setPosition(newPosition);
-    setCharacterSrc(newCharacterSrc);
+    setCurrentCharacterSrc(newCharacterSrc);
 
     socket.send(
       JSON.stringify({
