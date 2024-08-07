@@ -1,10 +1,13 @@
 import React, { useRef, useEffect, useState } from "react";
 
 import fanmeetingImg from "./assets/bg.png";
-import hana from "./assets/hana.png";
+import hanaL from "./assets/hana-left.png";
+import hanaR from "./assets/hana-right.png";
 
 const CharacterCanvas = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  const [characterSrc, setCharacterSrc] = useState<string>(hanaL);
   const [position, setPosition] = useState({
     x: 50,
     y: (window.innerHeight * 2) / 3,
@@ -15,22 +18,54 @@ const CharacterCanvas = () => {
     const ctx = canvas?.getContext("2d");
 
     const bgImg = new Image();
-    const characterImg = new Image();
+    const charImg = new Image();
 
     bgImg.src = fanmeetingImg;
-    characterImg.src = hana;
+    charImg.src = characterSrc;
+
+    bgImg.onload = () => {
+      if (ctx && canvas) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
+        ctx.drawImage(charImg, position.x, position.y, 50, 50);
+      }
+    };
+
+    charImg.onload = () => {
+      if (ctx && canvas) {
+        ctx.drawImage(charImg, position.x, position.y, 50, 50);
+      }
+    };
+  }, [position, characterSrc]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext("2d");
+
+    const bgImg = new Image();
+    const charImgL = new Image();
+    const charImgR = new Image();
+
+    bgImg.src = fanmeetingImg;
+    charImgL.src = hanaL;
+    charImgR.src = hanaR;
 
     const drawCanvas = () => {
       if (ctx && canvas) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
-        ctx.drawImage(characterImg, position.x, position.y, 50, 50);
+        if (characterSrc === hanaL) {
+          ctx.drawImage(charImgL, position.x, position.y, 50, 50);
+        } else {
+          ctx.drawImage(charImgR, position.x, position.y, 50, 50);
+        }
       }
     };
 
     bgImg.onload = drawCanvas;
-    characterImg.onload = drawCanvas;
-  }, [position]);
+    charImgL.onload = drawCanvas;
+    charImgR.onload = drawCanvas;
+  }, [characterSrc, position]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     switch (e.key) {
@@ -48,12 +83,14 @@ const CharacterCanvas = () => {
         break;
       case "ArrowLeft":
         setPosition((prev) => ({ ...prev, x: Math.max(prev.x - 10, 0) }));
+        setCharacterSrc(hanaL);
         break;
       case "ArrowRight":
         setPosition((prev) => ({
           ...prev,
           x: Math.min(prev.x + 10, window.innerWidth - 50),
         }));
+        setCharacterSrc(hanaR);
         break;
     }
   };
@@ -62,8 +99,8 @@ const CharacterCanvas = () => {
     <div tabIndex={0} onKeyDown={handleKeyDown} style={{ outline: "none" }}>
       <canvas
         ref={canvasRef}
-        width={window.innerWidth}
-        height={window.innerHeight}
+        width={window.innerWidth - 1}
+        height={window.innerHeight - 1}
         style={{ border: "1px solid black" }}
       />
     </div>
