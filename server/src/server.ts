@@ -2,6 +2,7 @@ import express from "express";
 import WebSocket from "ws";
 import cors from "cors";
 import dotenv from "dotenv";
+import { v4 as uuidv4 } from "uuid";
 
 dotenv.config();
 
@@ -44,41 +45,92 @@ const characters = [
   },
 ];
 
+const clients = new Map<
+  WebSocket,
+  {
+    id: string;
+    characterSrc: { left: string; right: string };
+    position: { x: number; y: number };
+  }
+>();
+
 wss.on("connection", (ws: WebSocket) => {
+  const id = uuidv4();
   const randomCharacter =
     characters[Math.floor(Math.random() * characters.length)];
-  const characterSrc = {
-    left: randomCharacter.left,
-    right: randomCharacter.right,
+  const initialPosition = {
+    x: 50,
+    y: (Math.floor(Math.random() * 600) * 2) / 3,
   };
 
-  // 클라이언트에게 랜덤 캐릭터 정보 전송
-  ws.send(JSON.stringify({ type: "init", characterSrc }));
+  clients.set(ws, {
+    id,
+    characterSrc: randomCharacter,
+    position: initialPosition,
+  });
+
+  ws.send(
+    JSON.stringify({
+      type: "init",
+      id,
+      characterSrc: randomCharacter,
+      position: initialPosition,
+    })
+  );
+
+  clients.forEach((client, clientWs) => {
+    if (clientWs !== ws && clientWs.readyState === WebSocket.OPEN) {
+      ws.send(
+        JSON.stringify({
+          type: "update",
+          id: client.id,
+          characterSrc: client.characterSrc,
+          position: client.position,
+        })
+      );
+    }
+  });
+
+  const newUserMessage = JSON.stringify({
+    type: "update",
+    id,
+    characterSrc: randomCharacter,
+    position: initialPosition,
+  });
+
+  wss.clients.forEach((client) => {
+    if (client !== ws && client.readyState === WebSocket.OPEN) {
+      client.send(newUserMessage);
+    }
+  });
 
   ws.on("message", (message: WebSocket.Data) => {
     if (typeof message === "string") {
-      // 메시지를 JSON 문자열로 처리
-      wss.clients.forEach((client) => {
-        if (
-          client instanceof WebSocket &&
-          client.readyState === WebSocket.OPEN
-        ) {
-          client.send(message);
-        }
+      const data = JSON.parse(message);
+      const client = clients.get(ws);
+
+      if (client) {
+        client.position = data.position;
+        client.characterSrc = data.characterSrc;
+      }
+
+      const updateMessage = JSON.stringify({
+        type: "update",
+        id: client?.id,
+        characterSrc: client?.characterSrc,
+        position: client?.position,
       });
-    } else if (message instanceof Buffer || message instanceof ArrayBuffer) {
-      // Buffer 처리
-      const buffer = message instanceof Buffer ? message : Buffer.from(message);
-      const jsonString = new TextDecoder("utf-8").decode(buffer);
+
       wss.clients.forEach((client) => {
-        if (
-          client instanceof WebSocket &&
-          client.readyState === WebSocket.OPEN
-        ) {
-          client.send(jsonString);
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(updateMessage);
         }
       });
     }
+  });
+
+  ws.on("close", () => {
+    clients.delete(ws);
   });
 });
 
