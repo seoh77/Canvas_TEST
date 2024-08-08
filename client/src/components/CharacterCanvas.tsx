@@ -63,6 +63,12 @@ const CharacterCanvas = () => {
           newCharacters.set(data.id, data);
           return newCharacters;
         });
+      } else if (data.type === "delete") {
+        setCharacters((prev) => {
+          const newCharacters = new Map(prev);
+          newCharacters.delete(data.id);
+          return newCharacters;
+        });
       }
     };
   }, []);

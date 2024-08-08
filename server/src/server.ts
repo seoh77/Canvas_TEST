@@ -130,6 +130,21 @@ wss.on("connection", (ws: WebSocket) => {
   });
 
   ws.on("close", () => {
+    const clientData = clients.get(ws);
+
+    if (clientData) {
+      const deleteMessage = JSON.stringify({
+        type: "delete",
+        id: clientData.id,
+      });
+
+      wss.clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(deleteMessage);
+        }
+      });
+    }
+
     clients.delete(ws);
   });
 });
