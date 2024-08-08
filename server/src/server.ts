@@ -63,39 +63,38 @@ wss.on("connection", (ws: WebSocket) => {
     y: (Math.floor(Math.random() * 600) * 2) / 3,
   };
 
-  clients.set(ws, {
+  const clientData = {
     id,
     characterSrc: randomCharacter,
     position: initialPosition,
-  });
+  };
 
-  ws.send(
-    JSON.stringify({
-      type: "init",
-      id,
-      characterSrc: randomCharacter,
-      position: initialPosition,
-    })
-  );
+  clients.set(ws, clientData);
 
-  clients.forEach((client, clientWs) => {
-    if (clientWs !== ws && clientWs.readyState === WebSocket.OPEN) {
+  // 새로 연결된 클라이언트에게 자신을 제외한 모든 클라이언트 정보를 전송
+  clients.forEach((client) => {
+    if (client.id !== id) {
       ws.send(
         JSON.stringify({
           type: "update",
-          id: client.id,
-          characterSrc: client.characterSrc,
-          position: client.position,
+          ...client,
         })
       );
     }
   });
 
+  // 새로운 클라이언트에게 자신의 정보 전송
+  ws.send(
+    JSON.stringify({
+      type: "init",
+      ...clientData,
+    })
+  );
+
+  // 다른 클라이언트에게 새로 연결된 클라이언트의 정보 전송
   const newUserMessage = JSON.stringify({
     type: "update",
-    id,
-    characterSrc: randomCharacter,
-    position: initialPosition,
+    ...clientData,
   });
 
   wss.clients.forEach((client) => {
@@ -112,20 +111,20 @@ wss.on("connection", (ws: WebSocket) => {
       if (client) {
         client.position = data.position;
         client.characterSrc = data.characterSrc;
+
+        const updateMessage = JSON.stringify({
+          type: "update",
+          id: client.id,
+          characterSrc: client.characterSrc,
+          position: client.position,
+        });
+
+        wss.clients.forEach((client) => {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(updateMessage);
+          }
+        });
       }
-
-      const updateMessage = JSON.stringify({
-        type: "update",
-        id: client?.id,
-        characterSrc: client?.characterSrc,
-        position: client?.position,
-      });
-
-      wss.clients.forEach((client) => {
-        if (client.readyState === WebSocket.OPEN) {
-          client.send(updateMessage);
-        }
-      });
     }
   });
 

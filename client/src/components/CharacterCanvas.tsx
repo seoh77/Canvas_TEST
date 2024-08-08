@@ -23,6 +23,7 @@ const CharacterCanvas = () => {
     y: window.innerHeight / 3,
   });
 
+  // 캐릭터 상태가 업데이트될 때마다 캔버스를 다시 그리기
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext("2d");
@@ -49,6 +50,7 @@ const CharacterCanvas = () => {
     drawCanvas();
   }, [characters]);
 
+  // WebSocket 메시지 처리
   useEffect(() => {
     socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
@@ -74,12 +76,14 @@ const CharacterCanvas = () => {
   }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!myId) return;
+
     let newPosition = { ...position };
     let newCharacterSrc = currentCharacterSrc;
 
     switch (e.key) {
       case "ArrowUp":
-        newPosition.y = Math.max(newPosition.y - 10, window.innerHeight / 3);
+        newPosition.y = Math.max(newPosition.y - 10, 0);
         break;
       case "ArrowDown":
         newPosition.y = Math.min(newPosition.y + 10, window.innerHeight - 50);
@@ -99,15 +103,31 @@ const CharacterCanvas = () => {
     setPosition(newPosition);
     setCurrentCharacterSrc(newCharacterSrc);
 
-    socket.send(
-      JSON.stringify({
-        type: "update",
-        id: myId,
-        characterSrc: { left: newCharacterSrc!, right: newCharacterSrc! },
-        position: newPosition,
-      })
-    );
+    const updatedCharacter = {
+      type: "update",
+      id: myId,
+      characterSrc: {
+        left: characters.get(myId!)?.characterSrc.left || newCharacterSrc!,
+        right: characters.get(myId!)?.characterSrc.right || newCharacterSrc!,
+      },
+      position: newPosition,
+    };
+
+    setCharacters((prev) => {
+      const newCharacters = new Map(prev);
+      newCharacters.set(myId!, updatedCharacter);
+      return newCharacters;
+    });
+
+    socket.send(JSON.stringify(updatedCharacter));
   };
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (canvas) {
+      canvas.focus();
+    }
+  }, []);
 
   return (
     <div tabIndex={0} onKeyDown={handleKeyDown} style={{ outline: "none" }}>
@@ -115,6 +135,7 @@ const CharacterCanvas = () => {
         ref={canvasRef}
         width={window.innerWidth}
         height={window.innerHeight}
+        tabIndex={0}
       />
     </div>
   );
